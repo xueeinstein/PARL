@@ -12,7 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+import json
 import numpy as np
+from collections import defaultdict
 import paddle.fluid as fluid
 
 
@@ -45,3 +48,74 @@ def arange_shuffle(n):
     out = create_tmp_var("shuffle", 'int32', [n])
     fluid.layers.py_func(shuffle, n_var, out)
     return out
+
+
+class ConfigDict(dict):
+    def __init__(self, loc=None, ghost=False):
+        self._dict = defaultdict(lambda _: False)
+        self.ghost = ghost
+        if loc:
+            with open(loc) as f:
+                raw = json.load(f)
+            if "inherits" in raw and raw["inherits"]:
+                for dep_loc in raw["inherits"]:
+                    self.update(ConfigDict(dep_loc))
+            if "updates" in raw and raw["updates"]:
+                self.update(raw["updates"], include_all=True)
+
+    def __getitem__(self, key):
+        return self._dict[key]
+
+    def __setitem__(self, key, value):
+        self._dict[key] = value
+
+    def __str__(self):
+        s = str(dict(self._dict))
+        s = s.replace("'", "\"")
+        s = s.replace("True", "true")
+        s = s.replace("False", "false")
+        pure_dict = json.loads(s)
+        # pretty print
+        return json.dumps(pure_dict, indent=2)
+
+    def __repr__(self):
+        return str(dict(self._dict))
+
+    def __iter__(self):
+        return self._dict.__iter__()
+
+    def __bool__(self):
+        return bool(self._dict)
+
+    def __nonzero__(self):
+        return bool(self._dict)
+
+    def update(self, dictlike, include_all=False):
+        for key in dictlike:
+            value = dictlike[key]
+            if isinstance(value, dict):
+                if key[0] == "*":
+                    # this means only override, do not set
+                    key = key[1:]
+                    ghost = True
+                else:
+                    ghost = False
+                if not include_all and isinstance(value, ConfigDict) and \
+                   key not in self._dict and value.ghost:
+                    continue
+                if key not in self._dict:
+                    self._dict[key] = ConfigDict(ghost=ghost)
+                self._dict[key].update(value)
+            else:
+                self._dict[key] = value
+
+
+def create_directory(directory):
+    dir_chunks = directory.split("/")
+    for i in range(len(dir_chunks)):
+        partial_dir = "/".join(dir_chunks[:i+1])
+        try:
+            os.makedirs(partial_dir)
+        except OSError:
+            pass
+    return directory
