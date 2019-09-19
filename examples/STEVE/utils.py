@@ -17,6 +17,7 @@ import json
 import numpy as np
 from collections import defaultdict
 import paddle.fluid as fluid
+from parl import layers as L
 
 
 def create_tmp_var(name, dtype, shape):
@@ -119,3 +120,12 @@ def create_directory(directory):
         except OSError:
             pass
     return directory
+
+
+def tile_ensemble_dim(var, size, axis=1):
+    shape = list(var.shape)
+    shape.insert(axis, 1)
+    var_ = L.reshape(var, shape)
+    expand_dims = [1 for _ in shape]
+    expand_dims[axis] = size
+    return L.expand(var_, expand_dims)

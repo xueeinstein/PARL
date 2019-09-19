@@ -91,7 +91,7 @@ class EnsembleFeedForwardNet(object):
         self.name = name
         self.in_size = in_size
         self.out_shape = out_shape
-        self.out_size = np.prod(out_shape)
+        self.out_size = np.prod(out_shape, dtype=int)
         self.layers = layers
         self.hidden_dim = hidden_dim
         self.ensemble_size = ensemble_size
@@ -157,7 +157,10 @@ class EnsembleFeedForwardNet(object):
         # Reshape to match output shape
         if len(self.out_shape) > 0:
             out_shape = list(h.shape)[:-1] + list(self.out_shape)
-            h = fluid.layers.reshape(h, out_shape)
+        else:
+            # out_shape is [], so squeeze last dim
+            out_shape = list(h.shape)[:-1]
+        h = fluid.layers.reshape(h, out_shape)
 
         return h
 
@@ -169,7 +172,7 @@ class FeedForwardNet(object):
         self.name = name
         self.in_size = in_size
         self.out_shape = out_shape
-        self.out_size = np.prod(out_shape)
+        self.out_size = np.prod(out_shape, dtype=int)
         self.layers = layers
         self.hidden_dim = hidden_dim
         self.final_nonlinearity = final_nonlinearity
